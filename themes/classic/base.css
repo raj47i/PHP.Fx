@@ -1,0 +1,182 @@
+@charset "utf-8";
+/* reset: start */
+html, body, div, span, applet, object, iframe, h1, h2, h3, h4, h5, h6, p, blockquote, pre, a, abbr, acronym, address, big, cite, code, del, dfn, em, font, img, ins, kbd, q, s, samp, small, strike, strong, sub, sup, tt, var, b, u, i, center, dl, dt, dd, ol, ul, li, fieldset, form, label, legend, table, caption, tbody, tfoot, thead, tr, th, td {
+	margin:0;
+	padding:0;
+	border:0;
+	outline:0;
+	font-size:100%;
+	vertical-align:baseline;
+	background:transparent;
+}
+body {
+	line-height:1;
+	text-align: center;
+	color: #000;
+}
+ol, ul {
+	list-style:none;
+}
+blockquote, q {
+	quotes:none;
+}
+blockquote:before, blockquote:after, q:before, q:after {
+	content:'';
+	content:none;
+}
+:focus {
+	outline:0;
+}
+ins {
+	text-decoration:none;
+}
+del {
+	text-decoration:line-through;
+}
+table {
+	border-collapse:collapse;
+	border-spacing:0;
+}
+/* reset: end */
+.container {
+	margin: 0px auto;
+	width: 96%;
+	min-width: 500px;
+	text-align: left;
+}
+.container .container {
+	width: auto;
+	float: left;
+}
+.clear {
+	clear:both;
+	display:block;
+	overflow:hidden;
+	visibility:hidden;
+	height:0;
+}
+.grid-1, .grid-2, .grid-3, .grid-4, .grid-5, .grid-6, .grid-7, .grid-8, .grid-9, .grid-10, .grid-11, .grid-12, .grid-13, .grid-14, .grid-15, .grid-16, .grid-17, .grid-18, .grid-19, .grid-20, .container-f {
+	float: left;
+	display: block;
+	margin: 0;
+	overflow: hidden;
+	padding: 0;
+	border: 0;
+	height: auto;
+	position: relative;
+}
+.container .container-f {
+	width: 0px;
+}
+.container .grid-1 {
+	width: 5%;
+}
+.container .grid-2 {
+	width: 10%;
+}
+.container .grid-3 {
+	width: 15%;
+}
+.container .grid-4 {
+	width: 20%;
+}
+.container .grid-5 {
+	width: 25%;
+}
+.container .grid-6 {
+	width: 30%;
+}
+.container .grid-7 {
+	width: 35%;
+}
+.container .grid-8 {
+	width: 40%;
+}
+.container .grid-9 {
+	width: 45%;
+}
+.container .grid-10 {
+	width: 50%;
+}
+.container .grid-11 {
+	width: 55%;
+}
+.container .grid-12 {
+	width: 60%;
+}
+.container .grid-13 {
+	width: 65%;
+}
+.container .grid-14 {
+	width: 70%;
+}
+.container .grid-15 {
+	width: 75%;
+}
+.container .grid-16 {
+	width: 80%;
+}
+.container .grid-17 {
+	width: 85%;
+}
+.container .grid-18 {
+	width: 90%;
+}
+.container .grid-19 {
+	width: 95%;
+}
+.container .grid-20 {
+	width: 100%;
+}
+.left {
+	text-align: center;
+}
+.center {
+	text-align: center;
+}
+.right {
+	text-align: right;
+}
+.float {
+	float: left;
+}
+.bg-1 {
+	background: #E0E0D8;
+}
+body {
+	font-family:Lucida Grande, Lucida Sans Unicode, sans-serif;
+	font-size: 12px;
+}
+h1 {
+	font-size: 18px;
+	font-weight: 400;
+	margin: 5px 0px;
+}
+#heading {
+	margin-bottom: 15px;
+}
+#region-head {
+	float: right;
+}
+#logo {
+	margin: 9px 15px 0px;
+}
+#primary-menu {
+	margin: 5px 10px 10px;
+	text-align: right;
+}
+.bg-2 {
+	background: #A6A7A2;
+
+}
+.content {
+	padding: 10px;
+	background: #fff;
+}
+#region-foot{
+	background: #CCC;
+}
+a {
+	color:#0074BD;
+	text-decoration:none;
+}

@@ -1,0 +1,1227 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Started on 2009-11-14 16:43:24
+
+SET statement_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = off;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET escape_string_warning = off;
+
+--
+-- TOC entry 352 (class 2612 OID 16386)
+-- Name: plpgsql; Type: PROCEDURAL LANGUAGE; Schema: -; Owner: postgres
+--
+
+CREATE PROCEDURAL LANGUAGE plpgsql;
+
+
+ALTER PROCEDURAL LANGUAGE plpgsql OWNER TO postgres;
+
+SET search_path = public, pg_catalog;
+
+--
+-- TOC entry 321 (class 1247 OID 57372)
+-- Dependencies: 322 3
+-- Name: int_unsigned; Type: DOMAIN; Schema: public; Owner: raj
+--
+
+CREATE DOMAIN int_unsigned AS integer
+	CONSTRAINT int_unsigned_check CHECK ((VALUE >= 0));
+
+
+ALTER DOMAIN public.int_unsigned OWNER TO raj;
+
+--
+-- TOC entry 22 (class 1255 OID 65539)
+-- Dependencies: 352 3
+-- Name: system_application_isdenied(text, text); Type: FUNCTION; Schema: public; Owner: raj
+--
+
+CREATE FUNCTION system_application_isdenied(text, text) RETURNS boolean
+    LANGUAGE plpgsql STABLE
+    AS $_$
+DECLARE
+pType  ALIAS FOR $1;
+pMask  ALIAS FOR $2;
+BEGIN
+
+IF(SELECT true FROM "access" WHERE( LOWER(pType) = "Type"  AND LOWER(pMask) LIKE LOWER("Mask") AND "Status" = 1) LIMIT 1 OFFSET 0) THEN
+	RETURN false;
+END IF;
+
+IF(SELECT true FROM "access" WHERE( LOWER(pType) = "Type"  AND LOWER(pMask) LIKE LOWER("Mask") AND "Status" = 0) LIMIT 1 OFFSET 0) THEN
+	RETURN true;
+END IF;
+
+RETURN false;
+
+END;
+$_$;
+
+
+ALTER FUNCTION public.system_application_isdenied(text, text) OWNER TO raj;
+
+--
+-- TOC entry 29 (class 1255 OID 114697)
+-- Dependencies: 3 352
+-- Name: system_config_get(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION system_config_get(text) RETURNS text
+    LANGUAGE plpgsql STABLE
+    AS $_$
+DECLARE
+configName  ALIAS FOR $1;
+BEGIN
+
+RETURN (SELECT "Value" FROM config WHERE( "Name" = configName ) LIMIT 1 OFFSET 0);
+
+END;
+$_$;
+
+
+ALTER FUNCTION public.system_config_get(text) OWNER TO postgres;
+
+--
+-- TOC entry 25 (class 1255 OID 114696)
+-- Dependencies: 352 3
+-- Name: system_config_set(text, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION system_config_set(text, text) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $_$
+DECLARE
+pName  ALIAS FOR $1;
+pValue  ALIAS FOR $2;
+BEGIN
+
+UPDATE config SET "Value" = pValue WHERE ( "Name" = pName );
+
+IF NOT FOUND THEN
+	INSERT INTO config("Name", "Value") VALUES (pName, pValue);
+END IF;
+
+RETURN FOUND;
+
+END;
+$_$;
+
+
+ALTER FUNCTION public.system_config_set(text, text) OWNER TO postgres;
+
+--
+-- TOC entry 30 (class 1255 OID 114699)
+-- Dependencies: 3 352
+-- Name: system_config_unset(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION system_config_unset(text) RETURNS boolean
+    LANGUAGE plpgsql STABLE
+    AS $_$
+DECLARE
+pName  ALIAS FOR $1;
+BEGIN
+
+DELETE FROM config WHERE ("Name" = pName);
+
+RETURN FOUND;
+
+END;
+$_$;
+
+
+ALTER FUNCTION public.system_config_unset(text) OWNER TO postgres;
+
+--
+-- TOC entry 20 (class 1255 OID 81931)
+-- Dependencies: 3 352
+-- Name: system_session_count(integer); Type: FUNCTION; Schema: public; Owner: raj
+--
+
+CREATE FUNCTION system_session_count(integer, OUT guest bigint, OUT registered bigint) RETURNS record
+    LANGUAGE plpgsql
+    AS $_$
+DECLARE
+tStamp  timestamp without time zone;
+BEGIN
+
+tStamp := now() - ($1 * interval '1 seconds');
+
+SELECT COUNT("Id") INTO guest FROM sessions WHERE("UsersId" = 0 AND "TimeStamp" > tStamp);
+SELECT COUNT("Id") INTO registered FROM sessions WHERE("UsersId" > 0 AND "TimeStamp" > tStamp);
+
+END;
+$_$;
+
+
+ALTER FUNCTION public.system_session_count(integer, OUT guest bigint, OUT registered bigint) OWNER TO raj;
+
+--
+-- TOC entry 24 (class 1255 OID 81933)
+-- Dependencies: 3 352
+-- Name: system_session_destroy(text); Type: FUNCTION; Schema: public; Owner: raj
+--
+
+CREATE FUNCTION system_session_destroy(text) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $_$
+DECLARE
+sessId  ALIAS FOR $1;
+BEGIN
+
+DELETE FROM sessions WHERE "Id" = sessId;
+RETURN FOUND;
+
+END;
+$_$;
+
+
+ALTER FUNCTION public.system_session_destroy(text) OWNER TO raj;
+
+--
+-- TOC entry 21 (class 1255 OID 73744)
+-- Dependencies: 352 3 321
+-- Name: system_session_kickout(int_unsigned); Type: FUNCTION; Schema: public; Owner: raj
+--
+
+CREATE FUNCTION system_session_kickout(int_unsigned) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $_$
+DECLARE
+userId  ALIAS FOR $1;
+BEGIN
+
+DELETE FROM sessions WHERE "UserId" = userId;
+RETURN FOUND;
+
+END;
+$_$;
+
+
+ALTER FUNCTION public.system_session_kickout(int_unsigned) OWNER TO raj;
+
+--
+-- TOC entry 19 (class 1255 OID 81934)
+-- Dependencies: 3 352
+-- Name: system_session_purge(integer); Type: FUNCTION; Schema: public; Owner: raj
+--
+
+CREATE FUNCTION system_session_purge(integer) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $_$
+DECLARE
+tStamp timestamp without time zone;
+BEGIN
+tStamp = now() - ($1 * '1 seconds'::interval);
+
+DELETE FROM sessions WHERE "TimeStamp" < tStamp;
+
+RETURN FOUND;
+END;
+$_$;
+
+
+ALTER FUNCTION public.system_session_purge(integer) OWNER TO raj;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- TOC entry 1542 (class 1259 OID 73732)
+-- Dependencies: 1838 1839 1840 321 3
+-- Name: sessions; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE sessions (
+    "Id" character varying(64) DEFAULT ''::character varying NOT NULL,
+    "UserId" int_unsigned NOT NULL,
+    "Host" character varying(128) DEFAULT ''::character varying NOT NULL,
+    "TimeStamp" timestamp without time zone,
+    "Cache" integer DEFAULT 0 NOT NULL,
+    "Session" text
+);
+
+
+ALTER TABLE public.sessions OWNER TO raj;
+
+--
+-- TOC entry 1550 (class 1259 OID 106548)
+-- Dependencies: 1845 3
+-- Name: users; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE users (
+    "Id" bigint NOT NULL,
+    "UserName" character varying(50),
+    "Password" character varying(50),
+    "Name" character varying(99) NOT NULL,
+    "DOB" date NOT NULL,
+    "Status" integer,
+    "Theme" character varying(50),
+    "Signature" character varying(250) DEFAULT ''::character varying NOT NULL,
+    "LastAccess" timestamp without time zone,
+    "LastLogin" timestamp without time zone,
+    "Timezone" character(8),
+    "Picture" character varying(250),
+    "Data" text,
+    "Sex" boolean
+);
+
+
+ALTER TABLE public.users OWNER TO raj;
+
+--
+-- TOC entry 1554 (class 1259 OID 114689)
+-- Dependencies: 1642 321 3
+-- Name: v_users_sessions; Type: VIEW; Schema: public; Owner: raj
+--
+
+CREATE VIEW v_users_sessions AS
+    SELECT sessions."UserId", sessions."Id" AS "SessionId", users."UserName", users."Name", users."Sex", users."DOB", users."Status", users."Theme", users."Signature", users."LastAccess", users."LastLogin", users."Timezone", users."Picture", users."Data", sessions."Host", sessions."TimeStamp", sessions."Cache", sessions."Session" FROM (users JOIN sessions ON ((users."Id" = (sessions."UserId")::integer)));
+
+
+ALTER TABLE public.v_users_sessions OWNER TO raj;
+
+--
+-- TOC entry 27 (class 1255 OID 114694)
+-- Dependencies: 3 350
+-- Name: system_session_read(text); Type: FUNCTION; Schema: public; Owner: raj
+--
+
+CREATE FUNCTION system_session_read(text) RETURNS v_users_sessions
+    LANGUAGE sql
+    AS $_$
+SELECT
+	*
+FROM
+	v_users_sessions
+WHERE(
+	v_users_sessions."SessionId" =$1
+)
+;
+
+$_$;
+
+
+ALTER FUNCTION public.system_session_read(text) OWNER TO raj;
+
+--
+-- TOC entry 23 (class 1255 OID 81921)
+-- Dependencies: 352 3
+-- Name: system_session_regenerate(text, text); Type: FUNCTION; Schema: public; Owner: raj
+--
+
+CREATE FUNCTION system_session_regenerate(text, text) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $_$
+DECLARE
+newSId  ALIAS FOR $1;
+oldSId  ALIAS FOR $1;
+BEGIN
+
+DELETE FROM sessions;
+
+RETURN FOUND;
+
+END;
+$_$;
+
+
+ALTER FUNCTION public.system_session_regenerate(text, text) OWNER TO raj;
+
+--
+-- TOC entry 28 (class 1255 OID 73731)
+-- Dependencies: 3 321 352
+-- Name: system_session_write(text, int_unsigned, text, integer, text); Type: FUNCTION; Schema: public; Owner: raj
+--
+
+CREATE FUNCTION system_session_write(text, int_unsigned, text, integer, text) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $_$
+DECLARE
+sessionId  ALIAS FOR $1;
+userId  ALIAS FOR $2;
+remoteIP  ALIAS FOR $3;
+cacheFlag  ALIAS FOR $4;
+sessionData  ALIAS FOR $5;
+BEGIN
+
+UPDATE
+	sessions
+SET
+	"Id" = sessionId,
+	"UserId" = userId,
+	"Host" = remoteIP,
+	"TimeStamp" = NOW(),
+	"Cache" = cacheFlag,
+	"Session" = sessionData
+WHERE(
+	"Id" = sessionId 
+);
+ 
+IF FOUND THEN
+	UPDATE
+		users
+	SET
+		"LastAccess" = now()
+	WHERE(
+		users."LastAccess" < (now() - ('180 seconds'::interval))
+		AND
+		users."Id" > 0
+		AND
+		users."Id" = userId
+	);
+	
+	RETURN true;
+ELSE
+	INSERT INTO
+		sessions("Id", "UserId", "Host", "TimeStamp", "Cache", "Session")
+	VALUES
+		(sessionId, userId, remoteIP, now(), cacheFlag, sessionData);
+		
+	IF FOUND THEN
+		RETURN true;	
+	END IF;
+	
+END IF;
+
+RETURN false;
+
+END;
+$_$;
+
+
+ALTER FUNCTION public.system_session_write(text, int_unsigned, text, integer, text) OWNER TO raj;
+
+--
+-- TOC entry 1552 (class 1259 OID 106573)
+-- Dependencies: 3
+-- Name: roles; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE roles (
+    "Id" integer NOT NULL,
+    "Name" character varying(250)
+);
+
+
+ALTER TABLE public.roles OWNER TO raj;
+
+--
+-- TOC entry 1551 (class 1259 OID 106568)
+-- Dependencies: 3
+-- Name: user_roles; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE user_roles (
+    "UserId" bigint NOT NULL,
+    "RoleId" integer NOT NULL
+);
+
+
+ALTER TABLE public.user_roles OWNER TO raj;
+
+--
+-- TOC entry 1553 (class 1259 OID 106578)
+-- Dependencies: 1641 3
+-- Name: v_user_roles; Type: VIEW; Schema: public; Owner: raj
+--
+
+CREATE VIEW v_user_roles AS
+    SELECT user_roles."UserId", user_roles."RoleId", roles."Name" FROM (user_roles JOIN roles ON ((user_roles."RoleId" = roles."Id")));
+
+
+ALTER TABLE public.v_user_roles OWNER TO raj;
+
+--
+-- TOC entry 26 (class 1255 OID 106589)
+-- Dependencies: 3 348
+-- Name: system_user_loadroles(integer); Type: FUNCTION; Schema: public; Owner: raj
+--
+
+CREATE FUNCTION system_user_loadroles(integer) RETURNS SETOF v_user_roles
+    LANGUAGE sql
+    AS $_$
+SELECT
+	*
+FROM
+	v_user_roles
+WHERE(
+	v_user_roles."UserId" =$1
+)
+;
+
+$_$;
+
+
+ALTER FUNCTION public.system_user_loadroles(integer) OWNER TO raj;
+
+--
+-- TOC entry 1541 (class 1259 OID 57359)
+-- Dependencies: 1835 1836 1837 3
+-- Name: access; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE access (
+    "Id" integer NOT NULL,
+    "Mask" character varying(255) DEFAULT ''::character varying NOT NULL,
+    "Type" character varying(255) DEFAULT ''::character varying NOT NULL,
+    "Status" smallint DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE public.access OWNER TO raj;
+
+--
+-- TOC entry 1540 (class 1259 OID 57357)
+-- Dependencies: 3 1541
+-- Name: access_id_seq; Type: SEQUENCE; Schema: public; Owner: raj
+--
+
+CREATE SEQUENCE access_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MAXVALUE
+    NO MINVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.access_id_seq OWNER TO raj;
+
+--
+-- TOC entry 1898 (class 0 OID 0)
+-- Dependencies: 1540
+-- Name: access_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: raj
+--
+
+ALTER SEQUENCE access_id_seq OWNED BY access."Id";
+
+
+--
+-- TOC entry 1899 (class 0 OID 0)
+-- Dependencies: 1540
+-- Name: access_id_seq; Type: SEQUENCE SET; Schema: public; Owner: raj
+--
+
+SELECT pg_catalog.setval('access_id_seq', 1, false);
+
+
+--
+-- TOC entry 1543 (class 1259 OID 81935)
+-- Dependencies: 3
+-- Name: config; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE config (
+    "Name" character varying(128) NOT NULL,
+    "Value" text NOT NULL
+);
+
+
+ALTER TABLE public.config OWNER TO raj;
+
+--
+-- TOC entry 1544 (class 1259 OID 98344)
+-- Dependencies: 3
+-- Name: countries; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE countries (
+    "ISO2" character(2) NOT NULL,
+    "ISO3" character(3),
+    "ISON" integer,
+    "Name" character varying(250)
+);
+
+
+ALTER TABLE public.countries OWNER TO raj;
+
+--
+-- TOC entry 1539 (class 1259 OID 57345)
+-- Dependencies: 3
+-- Name: temp; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE temp (
+    id integer NOT NULL,
+    data text,
+    value real
+);
+
+
+ALTER TABLE public.temp OWNER TO raj;
+
+--
+-- TOC entry 1549 (class 1259 OID 98411)
+-- Dependencies: 3
+-- Name: user_auth; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE user_auth (
+    "UserId" bigint NOT NULL,
+    "Password" character varying(99),
+    "OpenID" character(9),
+    "Facebook" character(9),
+    "GoogleConnect" character(9)
+);
+
+
+ALTER TABLE public.user_auth OWNER TO raj;
+
+--
+-- TOC entry 1545 (class 1259 OID 98349)
+-- Dependencies: 1841 1842 3
+-- Name: user_emails; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE user_emails (
+    "Email" character varying(250) NOT NULL,
+    "UserId" bigint NOT NULL,
+    "Position" integer DEFAULT 1 NOT NULL,
+    "Confirmed" boolean DEFAULT false NOT NULL
+);
+
+
+ALTER TABLE public.user_emails OWNER TO raj;
+
+--
+-- TOC entry 1548 (class 1259 OID 98399)
+-- Dependencies: 3
+-- Name: user_ims; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE user_ims (
+    "Service" character varying(10) NOT NULL,
+    "IM" character varying(250) NOT NULL,
+    "UserId" bigint NOT NULL
+);
+
+
+ALTER TABLE public.user_ims OWNER TO raj;
+
+--
+-- TOC entry 1547 (class 1259 OID 98386)
+-- Dependencies: 1844 3
+-- Name: user_links; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE user_links (
+    "Link" character varying(250) NOT NULL,
+    "UserId" bigint NOT NULL,
+    "Type" character varying(9) NOT NULL,
+    "Position" integer DEFAULT 1 NOT NULL
+);
+
+
+ALTER TABLE public.user_links OWNER TO raj;
+
+--
+-- TOC entry 1546 (class 1259 OID 98373)
+-- Dependencies: 1843 3
+-- Name: user_phones; Type: TABLE; Schema: public; Owner: raj; Tablespace: 
+--
+
+CREATE TABLE user_phones (
+    "Phone" character varying(250) NOT NULL,
+    "UserId" bigint NOT NULL,
+    "Type" character varying(9) NOT NULL,
+    "Position" integer DEFAULT 1 NOT NULL
+);
+
+
+ALTER TABLE public.user_phones OWNER TO raj;
+
+--
+-- TOC entry 1834 (class 2604 OID 57362)
+-- Dependencies: 1540 1541 1541
+-- Name: Id; Type: DEFAULT; Schema: public; Owner: raj
+--
+
+ALTER TABLE access ALTER COLUMN "Id" SET DEFAULT nextval('access_id_seq'::regclass);
+
+
+--
+-- TOC entry 1881 (class 0 OID 57359)
+-- Dependencies: 1541
+-- Data for Name: access; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+
+
+--
+-- TOC entry 1883 (class 0 OID 81935)
+-- Dependencies: 1543
+-- Data for Name: config; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+INSERT INTO config ("Name", "Value") VALUES ('patty', 'poocha');
+INSERT INTO config ("Name", "Value") VALUES ('FrontPage', 'default');
+INSERT INTO config ("Name", "Value") VALUES ('HomePage', 'home');
+
+
+--
+-- TOC entry 1884 (class 0 OID 98344)
+-- Dependencies: 1544
+-- Data for Name: countries; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AF', 'AFG', 4, 'AFGHANISTAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AL', 'ALB', 8, 'ALBANIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('DZ', 'DZA', 12, 'ALGERIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AS', 'ASM', 16, 'AMERICAN SAMOA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AD', 'AND', 20, 'ANDORRA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AO', 'AGO', 24, 'ANGOLA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AI', 'AIA', 660, 'ANGUILLA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AQ', NULL, NULL, 'ANTARCTICA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AG', 'ATG', 28, 'ANTIGUA AND BARBUDA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AR', 'ARG', 32, 'ARGENTINA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AM', 'ARM', 51, 'ARMENIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AW', 'ABW', 533, 'ARUBA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AU', 'AUS', 36, 'AUSTRALIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AT', 'AUT', 40, 'AUSTRIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AZ', 'AZE', 31, 'AZERBAIJAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BS', 'BHS', 44, 'BAHAMAS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BH', 'BHR', 48, 'BAHRAIN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BD', 'BGD', 50, 'BANGLADESH');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BB', 'BRB', 52, 'BARBADOS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BY', 'BLR', 112, 'BELARUS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BE', 'BEL', 56, 'BELGIUM');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BZ', 'BLZ', 84, 'BELIZE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BJ', 'BEN', 204, 'BENIN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BM', 'BMU', 60, 'BERMUDA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BT', 'BTN', 64, 'BHUTAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BO', 'BOL', 68, 'BOLIVIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BA', 'BIH', 70, 'BOSNIA AND HERZEGOVINA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BW', 'BWA', 72, 'BOTSWANA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BV', NULL, NULL, 'BOUVET ISLAND');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BR', 'BRA', 76, 'BRAZIL');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('IO', NULL, NULL, 'BRITISH INDIAN OCEAN TERRITORY');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BN', 'BRN', 96, 'BRUNEI DARUSSALAM');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BG', 'BGR', 100, 'BULGARIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BF', 'BFA', 854, 'BURKINA FASO');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('BI', 'BDI', 108, 'BURUNDI');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('KH', 'KHM', 116, 'CAMBODIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CM', 'CMR', 120, 'CAMEROON');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CA', 'CAN', 124, 'CANADA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CV', 'CPV', 132, 'CAPE VERDE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('KY', 'CYM', 136, 'CAYMAN ISLANDS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CF', 'CAF', 140, 'CENTRAL AFRICAN REPUBLIC');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TD', 'TCD', 148, 'CHAD');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CL', 'CHL', 152, 'CHILE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CN', 'CHN', 156, 'CHINA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CX', NULL, NULL, 'CHRISTMAS ISLAND');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CC', NULL, NULL, 'COCOS (KEELING) ISLANDS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CO', 'COL', 170, 'COLOMBIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('KM', 'COM', 174, 'COMOROS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CG', 'COG', 178, 'CONGO');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CD', 'COD', 180, 'CONGO, THE DEMOCRATIC REPUBLIC OF THE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CK', 'COK', 184, 'COOK ISLANDS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CR', 'CRI', 188, 'COSTA RICA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CI', 'CIV', 384, 'COTE D''IVOIRE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('HR', 'HRV', 191, 'CROATIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CU', 'CUB', 192, 'CUBA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CY', 'CYP', 196, 'CYPRUS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CZ', 'CZE', 203, 'CZECH REPUBLIC');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('DK', 'DNK', 208, 'DENMARK');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('DJ', 'DJI', 262, 'DJIBOUTI');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('DM', 'DMA', 212, 'DOMINICA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('DO', 'DOM', 214, 'DOMINICAN REPUBLIC');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('EC', 'ECU', 218, 'ECUADOR');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('EG', 'EGY', 818, 'EGYPT');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SV', 'SLV', 222, 'EL SALVADOR');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GQ', 'GNQ', 226, 'EQUATORIAL GUINEA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('ER', 'ERI', 232, 'ERITREA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('EE', 'EST', 233, 'ESTONIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('ET', 'ETH', 231, 'ETHIOPIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('FK', 'FLK', 238, 'FALKLAND ISLANDS (MALVINAS)');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('FO', 'FRO', 234, 'FAROE ISLANDS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('FJ', 'FJI', 242, 'FIJI');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('FI', 'FIN', 246, 'FINLAND');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('FR', 'FRA', 250, 'FRANCE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GF', 'GUF', 254, 'FRENCH GUIANA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PF', 'PYF', 258, 'FRENCH POLYNESIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TF', NULL, NULL, 'FRENCH SOUTHERN TERRITORIES');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GA', 'GAB', 266, 'GABON');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GM', 'GMB', 270, 'GAMBIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GE', 'GEO', 268, 'GEORGIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('DE', 'DEU', 276, 'GERMANY');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GH', 'GHA', 288, 'GHANA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GI', 'GIB', 292, 'GIBRALTAR');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GR', 'GRC', 300, 'GREECE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GL', 'GRL', 304, 'GREENLAND');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GD', 'GRD', 308, 'GRENADA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GP', 'GLP', 312, 'GUADELOUPE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GU', 'GUM', 316, 'GUAM');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GT', 'GTM', 320, 'GUATEMALA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GN', 'GIN', 324, 'GUINEA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GW', 'GNB', 624, 'GUINEA-BISSAU');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GY', 'GUY', 328, 'GUYANA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('HT', 'HTI', 332, 'HAITI');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('HM', NULL, NULL, 'HEARD ISLAND AND MCDONALD ISLANDS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('VA', 'VAT', 336, 'HOLY SEE (VATICAN CITY STATE)');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('HN', 'HND', 340, 'HONDURAS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('HK', 'HKG', 344, 'HONG KONG');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('HU', 'HUN', 348, 'HUNGARY');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('IS', 'ISL', 352, 'ICELAND');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('IN', 'IND', 356, 'INDIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('ID', 'IDN', 360, 'INDONESIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('IR', 'IRN', 364, 'IRAN, ISLAMIC REPUBLIC OF');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('IQ', 'IRQ', 368, 'IRAQ');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('IE', 'IRL', 372, 'IRELAND');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('IL', 'ISR', 376, 'ISRAEL');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('IT', 'ITA', 380, 'ITALY');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('JM', 'JAM', 388, 'JAMAICA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('JP', 'JPN', 392, 'JAPAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('JO', 'JOR', 400, 'JORDAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('KZ', 'KAZ', 398, 'KAZAKHSTAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('KE', 'KEN', 404, 'KENYA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('KI', 'KIR', 296, 'KIRIBATI');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('KP', 'PRK', 408, 'KOREA, DEMOCRATIC PEOPLE''S REPUBLIC OF');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('KR', 'KOR', 410, 'KOREA, REPUBLIC OF');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('KW', 'KWT', 414, 'KUWAIT');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('KG', 'KGZ', 417, 'KYRGYZSTAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('LA', 'LAO', 418, 'LAO PEOPLE''S DEMOCRATIC REPUBLIC');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('LV', 'LVA', 428, 'LATVIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('LB', 'LBN', 422, 'LEBANON');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('LS', 'LSO', 426, 'LESOTHO');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('LR', 'LBR', 430, 'LIBERIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('LY', 'LBY', 434, 'LIBYAN ARAB JAMAHIRIYA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('LI', 'LIE', 438, 'LIECHTENSTEIN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('LT', 'LTU', 440, 'LITHUANIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('LU', 'LUX', 442, 'LUXEMBOURG');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MO', 'MAC', 446, 'MACAO');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MK', 'MKD', 807, 'MACEDONIA, THE FORMER YUGOSLAV REPUBLIC OF');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MG', 'MDG', 450, 'MADAGASCAR');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MW', 'MWI', 454, 'MALAWI');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MY', 'MYS', 458, 'MALAYSIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MV', 'MDV', 462, 'MALDIVES');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('ML', 'MLI', 466, 'MALI');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MT', 'MLT', 470, 'MALTA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MH', 'MHL', 584, 'MARSHALL ISLANDS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MQ', 'MTQ', 474, 'MARTINIQUE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MR', 'MRT', 478, 'MAURITANIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MU', 'MUS', 480, 'MAURITIUS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('YT', NULL, NULL, 'MAYOTTE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MX', 'MEX', 484, 'MEXICO');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('FM', 'FSM', 583, 'MICRONESIA, FEDERATED STATES OF');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MD', 'MDA', 498, 'MOLDOVA, REPUBLIC OF');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MC', 'MCO', 492, 'MONACO');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MN', 'MNG', 496, 'MONGOLIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MS', 'MSR', 500, 'MONTSERRAT');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MA', 'MAR', 504, 'MOROCCO');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MZ', 'MOZ', 508, 'MOZAMBIQUE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MM', 'MMR', 104, 'MYANMAR');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('NA', 'NAM', 516, 'NAMIBIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('NR', 'NRU', 520, 'NAURU');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('NP', 'NPL', 524, 'NEPAL');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('NL', 'NLD', 528, 'NETHERLANDS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AN', 'ANT', 530, 'NETHERLANDS ANTILLES');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('NC', 'NCL', 540, 'NEW CALEDONIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('NZ', 'NZL', 554, 'NEW ZEALAND');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('NI', 'NIC', 558, 'NICARAGUA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('NE', 'NER', 562, 'NIGER');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('NG', 'NGA', 566, 'NIGERIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('NU', 'NIU', 570, 'NIUE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('NF', 'NFK', 574, 'NORFOLK ISLAND');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('MP', 'MNP', 580, 'NORTHERN MARIANA ISLANDS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('NO', 'NOR', 578, 'NORWAY');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('OM', 'OMN', 512, 'OMAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PK', 'PAK', 586, 'PAKISTAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PW', 'PLW', 585, 'PALAU');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PS', NULL, NULL, 'PALESTINIAN TERRITORY, OCCUPIED');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PA', 'PAN', 591, 'PANAMA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PG', 'PNG', 598, 'PAPUA NEW GUINEA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PY', 'PRY', 600, 'PARAGUAY');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PE', 'PER', 604, 'PERU');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PH', 'PHL', 608, 'PHILIPPINES');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PN', 'PCN', 612, 'PITCAIRN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PL', 'POL', 616, 'POLAND');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PT', 'PRT', 620, 'PORTUGAL');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PR', 'PRI', 630, 'PUERTO RICO');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('QA', 'QAT', 634, 'QATAR');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('RE', 'REU', 638, 'REUNION');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('RO', 'ROM', 642, 'ROMANIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('RU', 'RUS', 643, 'RUSSIAN FEDERATION');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('RW', 'RWA', 646, 'RWANDA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SH', 'SHN', 654, 'SAINT HELENA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('KN', 'KNA', 659, 'SAINT KITTS AND NEVIS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('LC', 'LCA', 662, 'SAINT LUCIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('PM', 'SPM', 666, 'SAINT PIERRE AND MIQUELON');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('VC', 'VCT', 670, 'SAINT VINCENT AND THE GRENADINES');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('WS', 'WSM', 882, 'SAMOA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SM', 'SMR', 674, 'SAN MARINO');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('ST', 'STP', 678, 'SAO TOME AND PRINCIPE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SA', 'SAU', 682, 'SAUDI ARABIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SN', 'SEN', 686, 'SENEGAL');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CS', NULL, NULL, 'SERBIA AND MONTENEGRO');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SC', 'SYC', 690, 'SEYCHELLES');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SL', 'SLE', 694, 'SIERRA LEONE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SG', 'SGP', 702, 'SINGAPORE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SK', 'SVK', 703, 'SLOVAKIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SI', 'SVN', 705, 'SLOVENIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SB', 'SLB', 90, 'SOLOMON ISLANDS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SO', 'SOM', 706, 'SOMALIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('ZA', 'ZAF', 710, 'SOUTH AFRICA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GS', NULL, NULL, 'SOUTH GEORGIA AND THE SOUTH SANDWICH ISLANDS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('ES', 'ESP', 724, 'SPAIN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('LK', 'LKA', 144, 'SRI LANKA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SD', 'SDN', 736, 'SUDAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SR', 'SUR', 740, 'SURINAME');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SJ', 'SJM', 744, 'SVALBARD AND JAN MAYEN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SZ', 'SWZ', 748, 'SWAZILAND');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SE', 'SWE', 752, 'SWEDEN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('CH', 'CHE', 756, 'SWITZERLAND');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('SY', 'SYR', 760, 'SYRIAN ARAB REPUBLIC');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TW', 'TWN', 158, 'TAIWAN, PROVINCE OF CHINA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TJ', 'TJK', 762, 'TAJIKISTAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TZ', 'TZA', 834, 'TANZANIA, UNITED REPUBLIC OF');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TH', 'THA', 764, 'THAILAND');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TL', NULL, NULL, 'TIMOR-LESTE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TG', 'TGO', 768, 'TOGO');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TK', 'TKL', 772, 'TOKELAU');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TO', 'TON', 776, 'TONGA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TT', 'TTO', 780, 'TRINIDAD AND TOBAGO');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TN', 'TUN', 788, 'TUNISIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TR', 'TUR', 792, 'TURKEY');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TM', 'TKM', 795, 'TURKMENISTAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TC', 'TCA', 796, 'TURKS AND CAICOS ISLANDS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('TV', 'TUV', 798, 'TUVALU');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('UG', 'UGA', 800, 'UGANDA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('UA', 'UKR', 804, 'UKRAINE');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('AE', 'ARE', 784, 'UNITED ARAB EMIRATES');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('GB', 'GBR', 826, 'UNITED KINGDOM');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('US', 'USA', 840, 'UNITED STATES');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('UM', NULL, NULL, 'UNITED STATES MINOR OUTLYING ISLANDS');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('UY', 'URY', 858, 'URUGUAY');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('UZ', 'UZB', 860, 'UZBEKISTAN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('VU', 'VUT', 548, 'VANUATU');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('VE', 'VEN', 862, 'VENEZUELA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('VN', 'VNM', 704, 'VIET NAM');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('VG', 'VGB', 92, 'VIRGIN ISLANDS, BRITISH');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('VI', 'VIR', 850, 'VIRGIN ISLANDS, U.S.');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('WF', 'WLF', 876, 'WALLIS AND FUTUNA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('EH', 'ESH', 732, 'WESTERN SAHARA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('YE', 'YEM', 887, 'YEMEN');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('ZM', 'ZMB', 894, 'ZAMBIA');
+INSERT INTO countries ("ISO2", "ISO3", "ISON", "Name") VALUES ('ZW', 'ZWE', 716, 'ZIMBABWE');
+
+
+--
+-- TOC entry 1892 (class 0 OID 106573)
+-- Dependencies: 1552
+-- Data for Name: roles; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+INSERT INTO roles ("Id", "Name") VALUES (2, 'ss asdas');
+INSERT INTO roles ("Id", "Name") VALUES (3, 'sdsa asdas');
+INSERT INTO roles ("Id", "Name") VALUES (4, 'sadasdas asdas');
+INSERT INTO roles ("Id", "Name") VALUES (5, 'as sa');
+INSERT INTO roles ("Id", "Name") VALUES (1, 'authenticated user');
+
+
+--
+-- TOC entry 1882 (class 0 OID 73732)
+-- Dependencies: 1542
+-- Data for Name: sessions; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('jr5cf3gqmucb7snevs73l5kfe5', 0, '127.0.0.1', '2009-11-12 20:35:57.255', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('sjofnlllivo0dadchar3thdm82', 0, '127.0.0.1', '2009-11-12 21:26:38.423', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('6hoc2kqpdhub9h5qlf84k26ns7', 0, '127.0.0.1', '2009-11-13 17:20:22.795', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('g3ni6dpgt4lrjjl7anskhu82q2', 0, '127.0.0.1', '2009-11-13 19:29:17.109', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('ak7dt6q35btmiq87kspuss4u27', 0, '127.0.0.1', '2009-11-13 19:41:52.739', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('5eb41u04qp6cf85tqefsfphlr3', 0, '127.0.0.1', '2009-11-13 19:42:43.925', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('1sbr4l12gcl40s7au193petmq1', 0, '127.0.0.1', '2009-11-13 12:10:21.416', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('ikkj5i05cc66ttrss1vh7gpj82', 0, '127.0.0.1', '2009-11-13 19:00:27.558', 1, 'messages|a:1:{s:5:"error";a:1:{i:0;s:155:"user warning: Smarty error: unable to read resource: "astas/asdas/as/as/page.tpl" in D:\\WWWRoot\\php.fx\\includes\\smarty\\Smarty.class.php on line 1093.<br />";}}');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('hqe2s0k3eoa515g83ftluubhr5', 0, '127.0.0.1', '2009-11-13 19:30:28.713', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('r6n6u115l1vm1h9arvd4i6v4b1', 0, '127.0.0.1', '2009-11-13 19:41:53.631', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('sdblgs1pt69g0nkugb06vhsfb2', 0, '127.0.0.1', '2009-11-13 22:02:30.149', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('vijsslpeianosdgiqo9od5rhd7', 0, '127.0.0.1', '2009-11-13 19:07:38.378', 1, 'messages|a:1:{s:5:"error";a:1:{i:0;s:155:"user warning: Smarty error: unable to read resource: "astas/asdas/as/as/page.tpl" in D:\\WWWRoot\\php.fx\\includes\\smarty\\Smarty.class.php on line 1093.<br />";}}');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('ourdqpgq8dsot0qveontm4b6s0', 0, '127.0.0.1', '2009-11-13 19:32:24.652', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('cb7mredqkbk3t54hinhqrvu3b1', 0, '127.0.0.1', '2009-11-13 19:42:18.955', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('k4f3hs2ealhlg7gutdbjsqlr06', 0, '127.0.0.1', '2009-11-13 22:06:33.895', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('klan4v8ln9kntre5g0t6dqcis3', 0, '127.0.0.1', '2009-11-13 19:07:58.477', 1, 'messages|a:1:{s:5:"error";a:1:{i:0;s:155:"user warning: Smarty error: unable to read resource: "astas/asdas/as/as/page.tpl" in D:\\WWWRoot\\php.fx\\includes\\smarty\\Smarty.class.php on line 1093.<br />";}}');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('inerra0tq9ftndjcr0hcsaok03', 0, '127.0.0.1', '2009-11-13 19:33:09.198', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('vono2ujkp84rplv3u14bj7nm81', 0, '127.0.0.1', '2009-11-13 19:42:19.787', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('qi804ls541trs2jnomknthpf72', 0, '127.0.0.1', '2009-11-13 23:13:51.155', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('chq8k0tl7sjebh4ge2foqapic1', 0, '127.0.0.1', '2009-11-13 19:08:14.874', 1, 'messages|a:1:{s:5:"error";a:1:{i:0;s:155:"user warning: Smarty error: unable to read resource: "astas/asdas/as/as/page.tpl" in D:\\WWWRoot\\php.fx\\includes\\smarty\\Smarty.class.php on line 1093.<br />";}}');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('6vslmpsa3gl6nijmju07fj6ul1', 0, '127.0.0.1', '2009-11-13 19:34:26.591', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('dagod9e8s0950i942b5cq1tgv5', 0, '127.0.0.1', '2009-11-13 19:42:32.5', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('sqklskk3bbhb0unidabfvjo7v0', 0, '127.0.0.1', '2009-11-14 00:11:31.494', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('475lpcnaj1g64prbprerm8c7k7', 0, '127.0.0.1', '2009-11-08 23:39:41.362', 1, 'sdasd|i:23432;sdaswd|s:6:"24:3|2";');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('p2lmi2biaf597ohkcerb8riba7', 0, '127.0.0.1', '2009-11-13 19:08:54.847', 1, 'messages|a:1:{s:5:"error";a:1:{i:0;s:155:"user warning: Smarty error: unable to read resource: "astas/asdas/as/as/page.tpl" in D:\\WWWRoot\\php.fx\\includes\\smarty\\Smarty.class.php on line 1093.<br />";}}');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('1b28o0002mquutamoan8pvb1b7', 0, '127.0.0.1', '2009-11-13 19:41:33.817', 1, 'messages|a:1:{s:5:"error";a:2:{i:0;s:205:"user error: Smarty error: [in controllers/index.tpl line 6]: syntax error: unrecognized tag:  (Smarty_Compiler.class.php, line 446) in D:\\WWWRoot\\php.fx\\includes\\smarty\\Smarty.class.php on line 1093.<br />";i:1;s:206:"user error: Smarty error: [in controllers/index.tpl line 6]: syntax error: unrecognized tag '''' (Smarty_Compiler.class.php, line 590) in D:\\WWWRoot\\php.fx\\includes\\smarty\\Smarty.class.php on line 1093.<br />";}}');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('vi274b3vfldjf62qodo0bhm6o1', 0, '127.0.0.1', '2009-11-13 19:42:33.773', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('16g8467h8vr374jpheru64dsm1', 0, '127.0.0.1', '2009-11-14 00:12:35.711', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('4bjmhfp0k6eq9i3hpknpoheqm1', 0, '127.0.0.1', '2009-11-13 19:09:42.866', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('gbf2c9rj8fomq56l8e80ljcfa0', 0, '127.0.0.1', '2009-11-13 19:41:35.287', 1, '');
+INSERT INTO sessions ("Id", "UserId", "Host", "TimeStamp", "Cache", "Session") VALUES ('ucscp4mpf7989csq1mpnc2ms22', 0, '127.0.0.1', '2009-11-13 19:42:43.237', 1, '');
+
+
+--
+-- TOC entry 1880 (class 0 OID 57345)
+-- Dependencies: 1539
+-- Data for Name: temp; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+INSERT INTO temp (id, data, value) VALUES (1, 'hello', 12.22);
+INSERT INTO temp (id, data, value) VALUES (2, 'sds', 2);
+
+
+--
+-- TOC entry 1889 (class 0 OID 98411)
+-- Dependencies: 1549
+-- Data for Name: user_auth; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+
+
+--
+-- TOC entry 1885 (class 0 OID 98349)
+-- Dependencies: 1545
+-- Data for Name: user_emails; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+
+
+--
+-- TOC entry 1888 (class 0 OID 98399)
+-- Dependencies: 1548
+-- Data for Name: user_ims; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+
+
+--
+-- TOC entry 1887 (class 0 OID 98386)
+-- Dependencies: 1547
+-- Data for Name: user_links; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+
+
+--
+-- TOC entry 1886 (class 0 OID 98373)
+-- Dependencies: 1546
+-- Data for Name: user_phones; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+
+
+--
+-- TOC entry 1891 (class 0 OID 106568)
+-- Dependencies: 1551
+-- Data for Name: user_roles; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+INSERT INTO user_roles ("UserId", "RoleId") VALUES (1, 1);
+INSERT INTO user_roles ("UserId", "RoleId") VALUES (1, 2);
+INSERT INTO user_roles ("UserId", "RoleId") VALUES (1, 3);
+INSERT INTO user_roles ("UserId", "RoleId") VALUES (1, 4);
+
+
+--
+-- TOC entry 1890 (class 0 OID 106548)
+-- Dependencies: 1550
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: raj
+--
+
+INSERT INTO users ("Id", "UserName", "Password", "Name", "DOB", "Status", "Theme", "Signature", "LastAccess", "LastLogin", "Timezone", "Picture", "Data", "Sex") VALUES (0, 'guest', NULL, 'Guest', '1985-03-25', 1, NULL, '', NULL, NULL, NULL, NULL, '
+', NULL);
+INSERT INTO users ("Id", "UserName", "Password", "Name", "DOB", "Status", "Theme", "Signature", "LastAccess", "LastLogin", "Timezone", "Picture", "Data", "Sex") VALUES (1, 'raj', NULL, 'Raj', '1985-03-25', 1, NULL, '', NULL, NULL, NULL, NULL, NULL, NULL);
+
+
+--
+-- TOC entry 1847 (class 2606 OID 57352)
+-- Dependencies: 1539 1539
+-- Name: PKey_ID; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY temp
+    ADD CONSTRAINT "PKey_ID" PRIMARY KEY (id);
+
+
+--
+-- TOC entry 1849 (class 2606 OID 57370)
+-- Dependencies: 1541 1541
+-- Name: pkey_access; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY access
+    ADD CONSTRAINT pkey_access PRIMARY KEY ("Id");
+
+
+--
+-- TOC entry 1853 (class 2606 OID 81944)
+-- Dependencies: 1543 1543
+-- Name: pkey_config; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY config
+    ADD CONSTRAINT pkey_config PRIMARY KEY ("Name");
+
+
+--
+-- TOC entry 1855 (class 2606 OID 98348)
+-- Dependencies: 1544 1544
+-- Name: pkey_countries; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY countries
+    ADD CONSTRAINT pkey_countries PRIMARY KEY ("ISO2");
+
+
+--
+-- TOC entry 1879 (class 2606 OID 106577)
+-- Dependencies: 1552 1552
+-- Name: pkey_roles; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY roles
+    ADD CONSTRAINT pkey_roles PRIMARY KEY ("Id");
+
+
+--
+-- TOC entry 1851 (class 2606 OID 73742)
+-- Dependencies: 1542 1542
+-- Name: pkey_sessions; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY sessions
+    ADD CONSTRAINT pkey_sessions PRIMARY KEY ("Id");
+
+
+--
+-- TOC entry 1873 (class 2606 OID 98415)
+-- Dependencies: 1549 1549
+-- Name: pkey_user_auth; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY user_auth
+    ADD CONSTRAINT pkey_user_auth PRIMARY KEY ("UserId");
+
+
+--
+-- TOC entry 1857 (class 2606 OID 98354)
+-- Dependencies: 1545 1545
+-- Name: pkey_user_emails; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY user_emails
+    ADD CONSTRAINT pkey_user_emails PRIMARY KEY ("Email");
+
+
+--
+-- TOC entry 1869 (class 2606 OID 98403)
+-- Dependencies: 1548 1548 1548
+-- Name: pkey_user_ims; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY user_ims
+    ADD CONSTRAINT pkey_user_ims PRIMARY KEY ("UserId", "Service");
+
+
+--
+-- TOC entry 1865 (class 2606 OID 98391)
+-- Dependencies: 1547 1547 1547 1547
+-- Name: pkey_user_links; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY user_links
+    ADD CONSTRAINT pkey_user_links PRIMARY KEY ("UserId", "Type", "Link");
+
+
+--
+-- TOC entry 1861 (class 2606 OID 98378)
+-- Dependencies: 1546 1546 1546
+-- Name: pkey_user_phones; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY user_phones
+    ADD CONSTRAINT pkey_user_phones PRIMARY KEY ("UserId", "Phone");
+
+
+--
+-- TOC entry 1877 (class 2606 OID 106572)
+-- Dependencies: 1551 1551 1551
+-- Name: pkey_user_roles; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY user_roles
+    ADD CONSTRAINT pkey_user_roles PRIMARY KEY ("UserId", "RoleId");
+
+
+--
+-- TOC entry 1875 (class 2606 OID 106556)
+-- Dependencies: 1550 1550
+-- Name: pkey_users; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY users
+    ADD CONSTRAINT pkey_users PRIMARY KEY ("Id");
+
+
+--
+-- TOC entry 1859 (class 2606 OID 98356)
+-- Dependencies: 1545 1545 1545
+-- Name: uni_user_emails; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY user_emails
+    ADD CONSTRAINT uni_user_emails UNIQUE ("UserId", "Position");
+
+
+--
+-- TOC entry 1871 (class 2606 OID 98405)
+-- Dependencies: 1548 1548 1548 1548
+-- Name: uni_user_ims; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY user_ims
+    ADD CONSTRAINT uni_user_ims UNIQUE ("UserId", "Service", "IM");
+
+
+--
+-- TOC entry 1867 (class 2606 OID 98393)
+-- Dependencies: 1547 1547 1547 1547
+-- Name: uni_user_links; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY user_links
+    ADD CONSTRAINT uni_user_links UNIQUE ("UserId", "Type", "Position");
+
+
+--
+-- TOC entry 1863 (class 2606 OID 98380)
+-- Dependencies: 1546 1546 1546 1546
+-- Name: uni_user_phones; Type: CONSTRAINT; Schema: public; Owner: raj; Tablespace: 
+--
+
+ALTER TABLE ONLY user_phones
+    ADD CONSTRAINT uni_user_phones UNIQUE ("UserId", "Type", "Position");
+
+
+--
+-- TOC entry 1897 (class 0 OID 0)
+-- Dependencies: 3
+-- Name: public; Type: ACL; Schema: -; Owner: postgres
+--
+
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+REVOKE ALL ON SCHEMA public FROM postgres;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO PUBLIC;
+
+
+-- Completed on 2009-11-14 16:43:25
+
+--
+-- PostgreSQL database dump complete
+--
+
